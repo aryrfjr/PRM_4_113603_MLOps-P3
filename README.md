@@ -2,7 +2,7 @@
 
 ## 🛠 Overview
 
-A simple, containerized prototype for a **DataOps API service** that packages and serves raw dataset files used in computational materials science or machine learning pipelines. It mimics a call to an HPC in the cloud service and includes:
+A simple, containerized prototype for a **DataOps API service** that packages and serves raw dataset files used in computational materials science or machine learning pipelines. It mimics a call to an **HPC in the cloud** service and includes:
 
 - A **FastAPI-based API** that bundles files into ZIP archives based on dataset identifiers (`<NC>`, `<ID_RUN>`, `<SUB_RUN>`).
 - A **client service** that fetches the ZIP archive via HTTP and extracts it.
