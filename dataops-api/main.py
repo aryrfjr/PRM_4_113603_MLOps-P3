@@ -3,12 +3,42 @@ from fastapi.responses import FileResponse
 from pathlib import Path
 import shutil
 
-app = FastAPI()
+app = FastAPI(
+    title="DataOps API P3",
+    description="Prototype API to package and serve raw data files based on (NC, ID_RUN, SUB_RUN) selection. " \
+    "It mimics a call to an HPC in the cloud service",
+    version="0.1.0"
+)
 
 DATA_ROOT = Path("/data/ML/big-data-full")
 
-@app.get("/generate/{nc}/{id_run}/{sub_run}")
+@app.get(
+        "/generate/{nc}/{id_run}/{sub_run}",
+        summary="Generate data package",
+        description="""
+Generate a ZIP archive containing the raw files associated with a given 
+nominal composition (NC), run ID, and sub-run.
+
+It includes:
+- LAMMPS `.dump` file
+- DFT input/output files (`.scf.in`, `.scf.out`)
+- Bond strength labels (`ICOHPLIST.lobster`)
+- SOAP descriptors (`SOAPS.vec`)
+
+**Returns:** ZIP archive for download.
+""",
+        response_description="A ZIP archive containing the requested dataset."
+)
 def generate_dataset(nc: str, id_run: str, sub_run: str):
+    """
+    Parameters:
+    - **nc**: Nominal Composition (e.g., Zr49Cu49Al2)
+    - **id_run**: Run ID (e.g., 21)
+    - **sub_run**: Sub-run ID (e.g., 0)
+
+    Returns:
+    - ZIP file containing data files for the specified identifiers.
+    """
     target_dir = DATA_ROOT / nc / "c/md/lammps/100" / id_run / "2000" / sub_run
     dump_file = DATA_ROOT / nc / "zca-th300.dump"
     soaps_file = DATA_ROOT / f"{nc}-SOAPS" / "c/md/lammps/100" / id_run / "2000" / sub_run / "SOAPS.vec"
