@@ -5,7 +5,7 @@ import shutil
 
 app = FastAPI()
 
-DATA_ROOT = Path("/data")
+DATA_ROOT = Path("/data/ML/big-data-full")
 
 @app.get("/generate/{nc}/{id_run}/{sub_run}")
 def generate_dataset(nc: str, id_run: str, sub_run: str):
@@ -16,13 +16,26 @@ def generate_dataset(nc: str, id_run: str, sub_run: str):
     if not target_dir.exists():
         raise HTTPException(status_code=404, detail="Target run not found")
 
-    archive_path = Path("/tmp") / f"{nc}_{id_run}_{sub_run}.zip"
-    with shutil.make_archive(str(archive_path).replace(".zip", ""), 'zip', root_dir=target_dir):
-        pass
+    temp_dir = Path("/tmp") / f"{nc}_{id_run}_{sub_run}"
+    if temp_dir.exists():
+        shutil.rmtree(temp_dir)
+    temp_dir.mkdir(parents=True)
 
-    # Add extra files manually if needed (like dump and SOAPS)
-    shutil.copy(dump_file, target_dir / "zca-th300.dump")
-    shutil.copy(soaps_file, target_dir / "SOAPS.vec")
+    # Copy the directory contents
+    for item in target_dir.iterdir():
+        shutil.copy(item, temp_dir)
 
-    return FileResponse(path=archive_path, filename=archive_path.name, media_type='application/zip')
+    # Copy extra files (dump and SOAP)
+    if dump_file.exists():
+        shutil.copy(dump_file, temp_dir)
+    if soaps_file.exists():
+        shutil.copy(soaps_file, temp_dir)
 
+    # Create ZIP archive
+    archive_path = shutil.make_archive(str(temp_dir), 'zip', root_dir=temp_dir)
+
+    return FileResponse(
+        path=archive_path,
+        filename=Path(archive_path).name,
+        media_type='application/zip'
+    )
