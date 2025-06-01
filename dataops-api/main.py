@@ -77,8 +77,7 @@ class NCDataGenerationResponse(BaseModel):
         }
 )
 async def schedule_nc_raw_data_generation(
-    nc: str = Path(..., description=NC_FIELD_DESC),
-    payload: NCDataGenerationRequest = Body(..., description="???")
+    nc: str = Path(..., description=NC_FIELD_DESC)
 ):
     
     # Extract existing id_run values and convert to integers
@@ -101,7 +100,7 @@ async def schedule_nc_raw_data_generation(
             status_code=404, detail=f"Directory for ID_RUN '{next_id_run}' or for SUB_RUN '0' not found for NC '{nc}'"
         )
 
-    # Register allocation
+    # Schedule for SUB_RUN 0
     AVAILABLE_RUNS.setdefault(nc, []).append({"id_run":next_id_run, "sub_runs": ["0"]})
 
     # Persist to file
@@ -117,6 +116,7 @@ async def schedule_nc_raw_data_generation(
 
 class NCDataAugmentationRequest(BaseModel):
     nc: str = Field(..., description=NC_FIELD_DESC, example=NC_FIELD_EXAMPLE)
+    id_run: str = Field(..., description=ID_RUN_FIELD_DESC, example=ID_RUN_FIELD_EXAMPLE)
 class NCDataAugmentationResponse(BaseModel):
     nc: str = Field(..., description=NC_FIELD_DESC, example=NC_FIELD_EXAMPLE)
     id_run: str = Field(..., description=ID_RUN_FIELD_DESC, example=ID_RUN_FIELD_EXAMPLE)
@@ -142,11 +142,39 @@ class NCDataAugmentationResponse(BaseModel):
 )
 def augment_nc_id_run(
     nc: str = Path(..., description=NC_FIELD_DESC),
-    id_run: str = Path(..., description=ID_RUN_FIELD_DESC),
-    payload: NCDataAugmentationRequest = Body(..., description="???")
-):
-    
-    return {}
+    id_run: str = Path(..., description=ID_RUN_FIELD_DESC)
+): # TODO: allow user pass the set of SUB_RUNs to be added; instead of adding 1 to 14
+
+    # Check if the requested RUN_ID is available
+    run_entry = next((run for run in AVAILABLE_RUNS.get(nc, []) if run["id_run"] == id_run), None)
+
+    if run_entry == None:
+        raise HTTPException(status_code=404, detail=f"NC '{nc}' or ID_RUN '{id_run}' not available")
+
+    # Scheduling sub-runs from 1 to 14
+    nc_sub_run_dir = DATA_ROOT / nc / "c/md/lammps/100" / id_run / "2000"
+
+    if not nc_sub_run_dir.exists():
+        raise HTTPException(
+            status_code=404, detail=f"Directory for SUB_RUNs not found for NC '{nc}' and ID_RUN '{id_run}'"
+        )
+
+    # NOTE: set() inherently removes duplicates
+    current_sub_runs = set(run_entry.get("sub_runs", []))
+
+    new_sub_runs = {str(i) for i in range(1, 15)}
+
+    # NOTE: .union() merges the two sets but keeps only unique values
+    run_entry["sub_runs"] = sorted(current_sub_runs.union(new_sub_runs), key=int)
+
+    # Persist to file
+    DB_AVAILABLE_RUNS_FILE.write_text(json.dumps(AVAILABLE_RUNS, indent=2))
+
+    return {
+        "nc": nc,
+        "id_run": id_run,
+        "status": STATUS_SCHEDULED
+    }
 
 ##########################################################################
 
@@ -157,11 +185,8 @@ def augment_nc_id_run(
         description="""
         Generates a ZIP archive containing the raw files associated with a given 
         NC, ID_RUN, and SUB_RUN.
-        It includes:
-        - DFT input/output files (`.scf.in`, `.scf.out`)
-        - Bond strength labels (`ICOHPLIST.lobster`)
-        - SOAP descriptors (`SOAPS.vec`)
-        **Returns:** ZIP archive for download.
+        It includes: (i) DFT input/output files (**.scf.in**, **.scf.out**); (ii) Bond strength labels (**ICOHPLIST.lobster**); 
+        (iii) SOAP descriptors (**SOAPS.vec**). **Returns:** ZIP archive for download.
         """,
         responses={
                 404: {"description": "SUB_RUN not found for nominal composition (NC)"},
@@ -185,6 +210,7 @@ def get_generated_nc_raw_data(
     if not sub_run_exists:
         raise HTTPException(status_code=404, detail=f"SUB_RUN '{sub_run}' is not available for NC '{nc}', ID_RUN '{id_run}'")
 
+    # Collecting files
     target_dir = DATA_ROOT / nc / "c/md/lammps/100" / id_run / "2000" / sub_run
     soaps_file = DATA_ROOT / f"{nc}-SOAPS" / "c/md/lammps/100" / id_run / "2000" / sub_run / "SOAPS.vec"
 
