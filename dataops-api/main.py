@@ -1,8 +1,7 @@
 from fastapi import FastAPI, Path, HTTPException, status, Body
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from typing import Dict, List
-from pathlib import Path
+from pathlib import Path as FilePath
 import shutil
 import json
 
@@ -19,15 +18,15 @@ app = FastAPI(
     version="0.1.0"
 )
 
-DATA_ROOT = Path("/data/ML/big-data-full")
-DB_FILE = Path("/tmp/allocated_runs.json")
+DATA_ROOT = FilePath("/data/ML/big-data-full")
+DB_AVAILABLE_RUNS_FILE = FilePath("/tmp/available_runs.json")
 
-if DB_FILE.exists():
-    ALLOCATED_RUNS = json.loads(DB_FILE.read_text())
+if DB_AVAILABLE_RUNS_FILE.exists():
+    AVAILABLE_RUNS = json.loads(DB_AVAILABLE_RUNS_FILE.read_text())
 else:
-    ALLOCATED_RUNS = {}  # {"Zr49Cu49Al2": [{"id_run":"1", "sub_runs":["0", "1"]]}, {"id_run":"2", "sub_runs":["0"]}]}
+    AVAILABLE_RUNS = {}  # {"Zr49Cu49Al2": [{"id_run":"1", "sub_runs":["0", "1"]]}, {"id_run":"2", "sub_runs":["0"]}]}
 
-NC_FIELD_DESC = "The nominal composition (NC) for which raw data generation is requested"
+NC_FIELD_DESC = "The NC for which raw data generation is requested"
 NC_FIELD_EXAMPLE = "Zr49Cu49Al2"
 ID_RUN_FIELD_DESC = "Unique identifier string that represents the scheduled run"
 ID_RUN_FIELD_EXAMPLE = "21"
@@ -61,16 +60,15 @@ class NCDataGenerationResponse(BaseModel):
         summary="Schedules the generation raw data for a given nominal composition (NC)",
         description="""
         Schedules the generation of a 100-atom cell with random distribution of atoms for a given 
-        nominal composition (NC) with a Classical Molecular Dynamics (CMD) simulation, as well as 
+        NC with a Classical Molecular Dynamics (CMD) simulation, as well as 
         all additional atomistic simulations for the generation of training raw data.
-        
         It will generate all input and output files for the atomistic simulations with LAMMPS, 
         electronic structure with Quantum ESPRESSO (DFT), LOBSTER (bond strength labels), and 
         QUIP+quippy (SOAP descriptors).
         """,
         responses={
-                404: {"description": "Nominal composition (NC) not found or no more raw data available"},
-                200: {"description": "Calculations successfully scheduled for nominal composition (NC)"},
+                404: {"description": "NC not found or no more raw data available"},
+                200: {"description": "Calculations successfully scheduled for NC"},
         }
 )
 async def schedule_nc_raw_data_generation(
@@ -79,7 +77,7 @@ async def schedule_nc_raw_data_generation(
 ):
     
     # Extract existing id_run values and convert to integers
-    existing_id_run = [int(run["id_run"]) for run in ALLOCATED_RUNS.get(nc, [])]
+    existing_id_run = [int(run["id_run"]) for run in AVAILABLE_RUNS.get(nc, [])]
 
     # Find the next id_run
     next_id_run = str(max(existing_id_run, default=0) + 1)
@@ -99,10 +97,10 @@ async def schedule_nc_raw_data_generation(
         )
 
     # Register allocation
-    ALLOCATED_RUNS.setdefault(nc, []).append({"id_run":next_id_run, "sub_runs": ["0"]})
+    AVAILABLE_RUNS.setdefault(nc, []).append({"id_run":next_id_run, "sub_runs": ["0"]})
 
     # Persist to file
-    DB_FILE.write_text(json.dumps(ALLOCATED_RUNS, indent=2))
+    DB_AVAILABLE_RUNS_FILE.write_text(json.dumps(AVAILABLE_RUNS, indent=2))
 
     return {
         "nc": nc,
@@ -126,16 +124,15 @@ class NCDataAugmentationResponse(BaseModel):
         summary="Schedules data augmentation for a given nominal composition (NC)",
         description="""
         Schedules data augmentation to increase structural diversity for a given 
-        nominal composition (NC). This is achieved by applying geometric transformations 
+        NC. This is achieved by applying geometric transformations 
         (shear, tension, compression) to the 100-atom cell in SUB_RUN 0.
-        
         It will generate all input and output files for the atomistic simulations with LAMMPS, 
         electronic structure with Quantum ESPRESSO (DFT), LOBSTER (bond strength labels), and 
         QUIP+quippy (SOAP descriptors).
         """,
         responses={
-                404: {"description": "Nominal composition (NC) or ID_RUN not found"},
-                200: {"description": "Calculations successfully scheduled for nominal composition (NC)"},
+                404: {"description": "NC or ID_RUN not found"},
+                200: {"description": "Calculations successfully scheduled for NC"},
         }
 )
 def augment_nc_id_run(
@@ -159,13 +156,11 @@ class NCGeneratedDataRequest(BaseModel):
         summary="Generates raw data package for a given nominal composition (NC), run ID (ID_RUN), and sub-run (SUB_RUN)",
         description="""
         Generates a ZIP archive containing the raw files associated with a given 
-        nominal composition (NC), run ID (ID_RUN), and sub-run (SUB_RUN).
-
+        NC, ID_RUN, and SUB_RUN.
         It includes:
         - DFT input/output files (`.scf.in`, `.scf.out`)
         - Bond strength labels (`ICOHPLIST.lobster`)
         - SOAP descriptors (`SOAPS.vec`)
-
         **Returns:** ZIP archive for download.
         """,
         responses={
@@ -186,7 +181,7 @@ def get_generated_nc_raw_data(
     if not target_dir.exists():
         raise HTTPException(status_code=404, detail="Target sub-run not found")
 
-    temp_dir = Path("/tmp") / f"{nc}_{id_run}_{sub_run}"
+    temp_dir = FilePath("/tmp") / f"{nc}_{id_run}_{sub_run}"
     if temp_dir.exists():
         shutil.rmtree(temp_dir)
     temp_dir.mkdir(parents=True)
@@ -204,6 +199,20 @@ def get_generated_nc_raw_data(
 
     return FileResponse(
         path=archive_path,
-        filename=Path(archive_path).name,
+        filename=FilePath(archive_path).name,
         media_type='application/zip'
     )
+
+##########################################################################
+
+@app.get(
+        "/v1/generate/available",
+        status_code=status.HTTP_200_OK,
+        summary="Returns the full set of available raw data",
+        description="""
+        **Returns** the full set of available raw data.
+        """
+)
+def get_available_raw_data():
+
+    return AVAILABLE_RUNS
