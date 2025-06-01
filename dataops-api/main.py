@@ -44,6 +44,11 @@ STATUS_SCHEDULED = "SCHEDULED"
 #
 # Endpoints for different resources types and scopes
 #
+# TODO: review status codess
+#
+# TODO: review error handling: consistent and descriptive error responses,
+#  with machine-readable codes and human-readable messages.
+#
 ##########################################################################
 
 class NCDataGenerationRequest(BaseModel):
@@ -77,10 +82,10 @@ async def schedule_nc_raw_data_generation(
 ):
     
     # Extract existing id_run values and convert to integers
-    existing_id_run = [int(run["id_run"]) for run in AVAILABLE_RUNS.get(nc, [])]
+    existing_id_runs = [int(run["id_run"]) for run in AVAILABLE_RUNS.get(nc, [])]
 
     # Find the next id_run
-    next_id_run = str(max(existing_id_run, default=0) + 1)
+    next_id_run = str(max(existing_id_runs, default=0) + 1) # TODO: non-sequential integer ID_RUN numbers
 
     nc_dir = DATA_ROOT / nc
     nc_id_run_dir = nc_dir / "c/md/lammps/100" / next_id_run
@@ -145,11 +150,6 @@ def augment_nc_id_run(
 
 ##########################################################################
 
-class NCGeneratedDataRequest(BaseModel):
-    nc: str = Field(..., description=NC_FIELD_DESC, example=NC_FIELD_EXAMPLE)
-    id_run: str = Field(..., description=ID_RUN_FIELD_DESC, example=ID_RUN_FIELD_EXAMPLE)
-    sub_run: str = Field(..., description=SUB_RUN_FIELD_DESC, example=SUB_RUN_FIELD_EXAMPLE)
-
 @app.get(
         "/v1/generate/{nc}/{id_run}/{sub_run}",
         status_code=status.HTTP_200_OK,
@@ -171,9 +171,19 @@ class NCGeneratedDataRequest(BaseModel):
 def get_generated_nc_raw_data(
     nc: str = Path(..., description=NC_FIELD_DESC),
     id_run: str = Path(..., description=ID_RUN_FIELD_DESC),
-    sub_run: str = Path(..., description=SUB_RUN_FIELD_DESC),
-    payload: NCGeneratedDataRequest = Body(..., description="???")
+    sub_run: str = Path(..., description=SUB_RUN_FIELD_DESC)
 ):
+
+    # Check if the requested SUB_RUN is available
+    run_entry = next((run for run in AVAILABLE_RUNS.get(nc, []) if run["id_run"] == id_run), None)
+
+    if run_entry == None:
+        raise HTTPException(status_code=404, detail=f"NC '{nc}' or ID_RUN '{id_run}' not available")
+
+    sub_run_exists = sub_run in run_entry["sub_runs"] if run_entry else False
+
+    if not sub_run_exists:
+        raise HTTPException(status_code=404, detail=f"SUB_RUN '{sub_run}' is not available for NC '{nc}', ID_RUN '{id_run}'")
 
     target_dir = DATA_ROOT / nc / "c/md/lammps/100" / id_run / "2000" / sub_run
     soaps_file = DATA_ROOT / f"{nc}-SOAPS" / "c/md/lammps/100" / id_run / "2000" / sub_run / "SOAPS.vec"
@@ -213,6 +223,5 @@ def get_generated_nc_raw_data(
         **Returns** the full set of available raw data.
         """
 )
-def get_available_raw_data():
-
+def get_available_raw_data(): # TODO: support for pagination/filtering
     return AVAILABLE_RUNS
