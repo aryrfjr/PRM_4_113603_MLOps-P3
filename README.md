@@ -45,7 +45,7 @@ All services are containerized with Docker Compose for reproducibility.
 ---
 
 ### 🔸 **3. Download Generated Dataset**
-**GET** `/v1/generate/{nc}/{id_run}/{sub_run}`
+**GET** `/v1/generate/{nc}/{id_run}/{sub_run}/download`
 
 - Generates and returns a ZIP archive with the files related to the specified `NC`, `ID_RUN`, and `SUB_RUN`. When called it:
   - Searches the `/data` directory for relevant files.
@@ -64,11 +64,69 @@ All services are containerized with Docker Compose for reproducibility.
 ```json
 {
   "Zr49Cu49Al2": [
-    {"id_run": "21", "sub_runs": ["0", "1", "2", "..."]}
-  ],
-  "Zr50Cu50": [
-    {"id_run": "1", "sub_runs": ["0"]}
+    {
+      "id_run": "1",
+      "sub_runs": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14"
+      ],
+      "run_scheduled_at": "2025-06-02T22:37:00.909889+00:00",
+      "sub_runs_scheduled_at": "2025-06-02T22:37:32.323661+00:00"
+    },
+    {
+      "id_run": "2",
+      "sub_runs": [
+        "0"
+      ],
+      "run_scheduled_at": "2025-06-02T22:37:03.487842+00:00"
+    }
   ]
+}
+```
+
+---
+
+### 🔸 **5. Returns the statuses of a specific ID_RUN**
+**GET** `/v1/generate/available`
+
+- Returns the statuses of a specific ID_RUN:
+```json
+{
+  "id_run": "1",
+  "sub_runs": [
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14"
+  ],
+  "run_scheduled_at": "2025-06-02T22:37:00.909889+00:00",
+  "sub_runs_scheduled_at": "2025-06-02T22:37:32.323661+00:00",
+  "run_status": "DONE",
+  "sub_runs_status": "DONE"
 }
 ```
 
