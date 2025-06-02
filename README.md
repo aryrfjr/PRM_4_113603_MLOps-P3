@@ -12,7 +12,7 @@ All services are containerized with Docker Compose for reproducibility.
 
 ---
 
-## 🧠 API Endpoints
+## 📦 API Endpoints
 
 ### 🔸 **1. Schedule Raw Data Generation**
 **POST** `/v1/generate/{nc}`
