@@ -4,4 +4,4 @@ DataOps REST API endpoint that mimics a call to an HPC in the cloud. This is goi
 
 ⚠️ **NOTE**: See also the repository https://github.com/aryrfjr/PRM_4_113603.
  
-⚠️ **NOTE**: Check ongoing work in **dev** branch.
+⚠️ **NOTE**: Ongoing work in **dev** branch.
