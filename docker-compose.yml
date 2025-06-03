@@ -1,0 +1,20 @@
+services:
+  dataops-api:
+    build: ./dataops-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - /home/aryjr/fromiomega/pos-doc/UFSCar/MG-NMR:/data  # raw data accessible to the API
+    networks:
+      - datanet
+
+  data-client:
+    build: ./data-client
+    depends_on:
+      - dataops-api
+    networks:
+      - datanet
+
+networks:
+  datanet:
+    driver: bridge
