@@ -100,7 +100,7 @@ All services are containerized with Docker Compose for reproducibility.
 ---
 
 ### 🔸 **5. Returns the statuses of a specific ID_RUN**
-**GET** `/v1/generate/available`
+**GET** `/v1/generate/{nc}/{id_run}/status`
 
 - Returns the statuses of a specific ID_RUN:
 ```json
